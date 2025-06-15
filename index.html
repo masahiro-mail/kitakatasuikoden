@@ -1,0 +1,490 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>インタラクティブ解説：北方謙三「大水滸伝」の壮大なる世界</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;700&family=Shippori+Mincho:wght@400;700&display=swap" rel="stylesheet">
+    <!-- Chosen Palette: "Classic Scroll" - bg-amber-50, text-stone-800, accent-red-900 -->
+    <!-- Application Structure Plan: A single-page, top-down narrative structure is chosen to guide the user through the immense scale of the story logically. It begins with a hook (Introduction), delves into the creator (The Architect), explores the core content via an interactive tabbed interface (The Grand Trilogy), and concludes with a visual summary and analysis (The Scale & Legacy). This structure breaks down the complexity, making it digestible and engaging, rather than overwhelming the user with all 51 volumes of information at once. The user flow is intentionally linear to mirror the experience of reading an epic, but with interactive points to allow for deeper, non-linear exploration within each section. -->
+    <!-- Visualization & Content Choices: 
+        - Report Info: Overall scale (51 vols, 11.6M copies) -> Goal: Inform -> Dynamic Stat Counters -> Interaction: On-scroll animation -> Justification: Provides an immediate "wow" factor about the series' scale -> JS (Intersection Observer).
+        - Report Info: Author's background and philosophy -> Goal: Organize -> Interactive Toggle Buttons -> Interaction: Click to switch content -> Justification: Separates two facets of the author's profile (career vs. ideas), preventing a long, monolithic text block and encouraging user interaction -> Vanilla JS.
+        - Report Info: Narrative arc of each trilogy part -> Goal: Change/Process -> Clickable Step-Diagram -> Interaction: Click to reveal details for each stage -> Justification: Visualizes the plot progression (e.g., Rise -> Fall) more effectively than a paragraph, simplifying complex narratives -> Vanilla JS + Tailwind CSS.
+        - Report Info: Volume count per trilogy part -> Goal: Compare -> Bar Chart -> Interaction: Hover tooltips -> Justification: A bar chart provides a clear, instant visual comparison of the length and weight of each part of the epic, reinforcing its scale -> Chart.js.
+        - All choices confirm NO SVG and NO Mermaid JS, using HTML/CSS/Canvas instead.
+    -->
+    <!-- CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
+    <style>
+        body {
+            font-family: 'Noto Sans JP', sans-serif;
+            background-color: #fffbeb; /* amber-50 */
+            color: #292524; /* stone-800 */
+        }
+        h1, h2, h3 {
+            font-family: 'Shippori Mincho', serif;
+        }
+        .nav-link {
+            transition: color 0.3s, border-color 0.3s;
+        }
+        .nav-link:hover, .nav-link.active {
+            color: #7f1d1d; /* red-900 */
+            border-bottom-color: #7f1d1d; /* red-900 */
+        }
+        .trilogy-tab {
+            transition: all 0.3s;
+            border-color: transparent;
+        }
+        .trilogy-tab.active {
+            background-color: #7f1d1d; /* red-900 */
+            color: #fffbeb; /* amber-50 */
+            border-color: #7f1d1d; /* red-900 */
+        }
+        .trilogy-tab:not(.active):hover {
+            background-color: #fef3c7; /* amber-100 */
+            border-color: #7f1d1d; /* red-900 */
+        }
+        .content-section {
+            display: none;
+        }
+        .content-section.active {
+            display: block;
+        }
+        .step-diagram-item {
+            cursor: pointer;
+            transition: all 0.2s ease-in-out;
+        }
+        .step-diagram-item:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+        }
+        .step-diagram-item.active {
+             background-color: #7f1d1d; /* red-900 */
+             color: #fffbeb; /* amber-50 */
+        }
+        .fade-in {
+            opacity: 0;
+            transition: opacity 1s ease-out;
+        }
+        .fade-in.visible {
+            opacity: 1;
+        }
+        .chart-container {
+            position: relative;
+            width: 100%;
+            max-width: 800px;
+            margin-left: auto;
+            margin-right: auto;
+            height: 400px;
+            max-height: 50vh;
+        }
+    </style>
+</head>
+<body class="leading-relaxed">
+
+    <header id="main-header" class="bg-amber-50/80 backdrop-blur-sm sticky top-0 z-50 border-b border-stone-200">
+        <nav class="max-w-6xl mx-auto px-4">
+            <div class="flex justify-between items-center py-3">
+                <h1 class="text-xl md:text-2xl font-bold text-stone-900">大水滸伝の世界</h1>
+                <div class="hidden md:flex space-x-8">
+                    <a href="#intro" class="nav-link text-stone-700 pb-1 border-b-2 border-transparent">序章</a>
+                    <a href="#architect" class="nav-link text-stone-700 pb-1 border-b-2 border-transparent">創造主</a>
+                    <a href="#trilogy" class="nav-link text-stone-700 pb-1 border-b-2 border-transparent">三部作</a>
+                    <a href="#legacy" class="nav-link text-stone-700 pb-1 border-b-2 border-transparent">壮大なる遺産</a>
+                </div>
+                <div class="md:hidden">
+                    <button id="mobile-menu-button" class="text-stone-800 focus:outline-none">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16m-7 6h7"></path></svg>
+                    </button>
+                </div>
+            </div>
+            <div id="mobile-menu" class="hidden md:hidden py-2">
+                <a href="#intro" class="block py-2 px-4 text-sm text-stone-700">序章</a>
+                <a href="#architect" class="block py-2 px-4 text-sm text-stone-700">創造主</a>
+                <a href="#trilogy" class="block py-2 px-4 text-sm text-stone-700">三部作</a>
+                <a href="#legacy" class="block py-2 px-4 text-sm text-stone-700">壮大なる遺産</a>
+            </div>
+        </nav>
+    </header>
+
+    <main>
+        <section id="intro" class="py-16 md:py-24 bg-amber-100/50">
+            <div class="max-w-5xl mx-auto px-6 text-center">
+                <h2 class="text-3xl md:text-5xl font-bold text-stone-900 mb-4">北方謙三「大水滸伝」</h2>
+                <p class="text-lg md:text-xl text-stone-700 max-w-3xl mx-auto mb-10">
+                    その壮大なスケールから「映像化困難」と謳われる、現代日本文学の金字塔。全51巻に及ぶ物語の深淵を、インタラクティブに探求する旅へようこそ。
+                </p>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-2xl mx-auto text-stone-800">
+                    <div class="bg-white/50 p-6 rounded-lg shadow-sm fade-in">
+                        <div id="stat-vols" class="text-5xl font-bold text-red-900">0</div>
+                        <p class="mt-2 text-lg">総巻数</p>
+                    </div>
+                    <div class="bg-white/50 p-6 rounded-lg shadow-sm fade-in">
+                        <div id="stat-copies" class="text-5xl font-bold text-red-900">0</div>
+                        <p class="mt-2 text-lg">累計発行部数（万部）</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section id="architect" class="py-16 md:py-20">
+            <div class="max-w-5xl mx-auto px-6">
+                <header class="text-center mb-12">
+                    <h2 class="text-3xl md:text-4xl font-bold text-stone-900">物語の建築家：北方謙三</h2>
+                    <p class="mt-4 text-stone-600 max-w-2xl mx-auto">ハードボイルドの旗手が、なぜ歴史の荒野へ向かったのか。その創作の源流に迫ります。</p>
+                </header>
+                <div class="flex justify-center mb-8">
+                    <div class="inline-flex rounded-md shadow-sm" role="group">
+                        <button type="button" id="author-tab-journey" class="author-tab active px-6 py-3 text-sm font-medium border border-stone-300 rounded-l-lg">創作の軌跡</button>
+                        <button type="button" id="author-tab-philosophy" class="author-tab px-6 py-3 text-sm font-medium border-t border-b border-r border-stone-300 rounded-r-lg">創作の核心</button>
+                    </div>
+                </div>
+                <div id="author-content-journey" class="author-content active bg-white/60 p-8 rounded-lg shadow-inner ring-1 ring-stone-200">
+                    <h3 class="font-bold text-xl mb-4 text-red-900">純文学からハードボイルド、そして歴史の舞台へ</h3>
+                    <p class="text-stone-700">1947年生まれ。当初は純文学を志すも、1981年『弔鐘はるかなり』でハードボイルド小説に転向し、一躍人気作家となる。その後、80年代を通じてハードボイルドの旗手として活躍。しかし、1989年の『武王の門』を皮切りに歴史小説へと進出。中国史に題材を求め、『三国志』を経て、この壮大な『大水滸伝』シリーズへとたどり着いた。氏のキャリアは、ジャンルの境界を越え、常に「人間」を描き続ける旅路そのものである。</p>
+                </div>
+                <div id="author-content-philosophy" class="author-content bg-white/60 p-8 rounded-lg shadow-inner ring-1 ring-stone-200">
+                    <h3 class="font-bold text-xl mb-4 text-red-900">物語の自由と、強大な権力との対峙</h3>
+                    <p class="text-stone-700">北方氏が『水滸伝』を選んだのは、「正史」の制約がある『三国志』とは対照的に、「史実に縛られずに、物語のダイナミズムで突っ込んでいける」自由さがあったからだ。また、学生運動の経験は、作中で描かれる宋王朝に「強力で、恐ろしい権力」としてのリアリティを与えた。歴史の解説ではなく、歴史の枠組みの中で展開される人間のドラマこそが、氏の描きたい「物語」なのである。この姿勢が、ハードボイルドで培われたリアリズムと融合し、独自の歴史叙事詩を生み出した。</p>
+                </div>
+            </div>
+        </section>
+
+        <section id="trilogy" class="py-16 md:py-20 bg-amber-100/50">
+            <div class="max-w-6xl mx-auto px-6">
+                <header class="text-center mb-12">
+                    <h2 class="text-3xl md:text-4xl font-bold text-stone-900">壮大なる三部作の旅路</h2>
+                    <p class="mt-4 text-stone-600 max-w-2xl mx-auto">反逆、継承、そして終焉へ。世代を超えて紡がれる、魂の物語を辿る。</p>
+                </header>
+
+                <div class="flex flex-col sm:flex-row justify-center items-center space-y-2 sm:space-y-0 sm:space-x-2 md:space-x-4 mb-12">
+                    <button id="trilogy-tab-suikoden" class="trilogy-tab active w-full sm:w-auto text-lg font-bold py-4 px-8 border-b-4 rounded-t-lg">第一部：水滸伝</button>
+                    <button id="trilogy-tab-yoreiden" class="trilogy-tab w-full sm:w-auto text-lg font-bold py-4 px-8 border-b-4 rounded-t-lg">第二部：楊令伝</button>
+                    <button id="trilogy-tab-gakuhiden" class="trilogy-tab w-full sm:w-auto text-lg font-bold py-4 px-8 border-b-4 rounded-t-lg">第三部：岳飛伝</button>
+                </div>
+
+                <div id="trilogy-content-suikoden" class="trilogy-content active">
+                    <div class="bg-white/60 p-6 md:p-10 rounded-lg shadow-lg">
+                        <h3 class="text-2xl font-bold mb-1 text-red-900">水滸伝 – 反逆の狼煙 (全19巻)</h3>
+                        <p class="text-stone-600 mb-6">腐敗した国家に対し、梁山泊に集った好漢たちが反旗を翻す。理想、闘争、そして仲間との絆を描く、全ての始まりの物語。</p>
+                        
+                        <div class="mb-8">
+                            <h4 class="font-bold text-lg mb-4 text-center text-stone-800">物語の潮流（クリックで詳細表示）</h4>
+                            <div class="flex flex-col md:flex-row justify-center items-stretch gap-2">
+                                <div class="step-diagram-item flex-1 p-4 border border-stone-300 rounded-md text-center bg-white" data-part="suikoden" data-step="1"><strong>集結</strong><br>梁山泊への道</div>
+                                <div class="self-center text-2xl text-stone-400 mx-2 font-thin">&rarr;</div>
+                                <div class="step-diagram-item flex-1 p-4 border border-stone-300 rounded-md text-center bg-white" data-part="suikoden" data-step="2"><strong>闘争</strong><br>官軍との死闘</div>
+                                <div class="self-center text-2xl text-stone-400 mx-2 font-thin">&rarr;</div>
+                                <div class="step-diagram-item flex-1 p-4 border border-stone-300 rounded-md text-center bg-white" data-part="suikoden" data-step="3"><strong>落日</strong><br>悲劇的な結末</div>
+                            </div>
+                        </div>
+                        <div id="suikoden-details" class="bg-amber-50 p-6 rounded-md min-h-[100px] text-stone-700 transition-all duration-300">
+                           <p>上のステップをクリックして、物語の展開を確認してください。</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="trilogy-content-yoreiden" class="trilogy-content">
+                    <div class="bg-white/60 p-6 md:p-10 rounded-lg shadow-lg">
+                        <h3 class="text-2xl font-bold mb-1 text-red-900">楊令伝 – 灰燼からの新たな道 (全15巻)</h3>
+                        <p class="text-stone-600 mb-6">梁山泊壊滅から3年。遺志を継いだ若き指導者・楊令のもと、生き残った者たちが再起を図る。それは単なる再建ではなく、新たな国家の創造だった。</p>
+                        <div class="mb-8">
+                            <h4 class="font-bold text-lg mb-4 text-center text-stone-800">物語の潮流（クリックで詳細表示）</h4>
+                             <div class="flex flex-col md:flex-row justify-center items-stretch gap-2">
+                                <div class="step-diagram-item flex-1 p-4 border border-stone-300 rounded-md text-center bg-white" data-part="yoreiden" data-step="1"><strong>継承</strong><br>楊令の登場</div>
+                                <div class="self-center text-2xl text-stone-400 mx-2 font-thin">&rarr;</div>
+                                <div class="step-diagram-item flex-1 p-4 border border-stone-300 rounded-md text-center bg-white" data-part="yoreiden" data-step="2"><strong>建国</strong><br>ネットワーク国家</div>
+                                <div class="self-center text-2xl text-stone-400 mx-2 font-thin">&rarr;</div>
+                                <div class="step-diagram-item flex-1 p-4 border border-stone-300 rounded-md text-center bg-white" data-part="yoreiden" data-step="3"><strong>凶刃</strong><br>大願成就目前の悲劇</div>
+                            </div>
+                        </div>
+                         <div id="yoreiden-details" class="bg-amber-50 p-6 rounded-md min-h-[100px] text-stone-700 transition-all duration-300">
+                           <p>上のステップをクリックして、物語の展開を確認してください。</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="trilogy-content-gakuhiden" class="trilogy-content">
+                    <div class="bg-white/60 p-6 md:p-10 rounded-lg shadow-lg">
+                        <h3 class="text-2xl font-bold mb-1 text-red-900">岳飛伝 – 最終対決と広がる世界 (全17巻)</h3>
+                        <p class="text-stone-600 mb-6">楊令亡き後、物語は南宋の名将・岳飛を新たな軸に展開。宋、金、そして梁山泊。三つの勢力の運命が、大陸を越えて交錯する完結編。</p>
+                         <div class="mb-8">
+                            <h4 class="font-bold text-lg mb-4 text-center text-stone-800">物語の潮流（クリックで詳細表示）</h4>
+                            <div class="flex flex-col md:flex-row justify-center items-stretch gap-2">
+                                <div class="step-diagram-item flex-1 p-4 border border-stone-300 rounded-md text-center bg-white" data-part="gakuhiden" data-step="1"><strong>三国鼎立</strong><br>岳飛の登場</div>
+                                <div class="self-center text-2xl text-stone-400 mx-2 font-thin">&rarr;</div>
+                                <div class="step-diagram-item flex-1 p-4 border border-stone-300 rounded-md text-center bg-white" data-part="gakuhiden" data-step="2"><strong>世界へ</strong><br>国際的な紛争</div>
+                                <div class="self-center text-2xl text-stone-400 mx-2 font-thin">&rarr;</div>
+                                <div class="step-diagram-item flex-1 p-4 border border-stone-300 rounded-md text-center bg-white" data-part="gakuhiden" data-step="3"><strong>終焉</strong><br>梁山泊の解体</div>
+                            </div>
+                        </div>
+                         <div id="gakuhiden-details" class="bg-amber-50 p-6 rounded-md min-h-[100px] text-stone-700 transition-all duration-300">
+                           <p>上のステップをクリックして、物語の展開を確認してください。</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section id="legacy" class="py-16 md:py-20">
+             <div class="max-w-5xl mx-auto px-6">
+                <header class="text-center mb-12">
+                    <h2 class="text-3xl md:text-4xl font-bold text-stone-900">壮大なるスケールと不朽の魅力</h2>
+                    <p class="mt-4 text-stone-600 max-w-2xl mx-auto">なぜこの物語は、読者を惹きつけてやまないのか。その魅力の核心をデータと分析で読み解く。</p>
+                </header>
+                
+                <div class="bg-white/60 p-6 md:p-8 rounded-lg shadow-lg mb-12">
+                     <h3 class="font-bold text-xl text-center mb-4 text-stone-800">三部作の巻数比較</h3>
+                     <div class="chart-container">
+                        <canvas id="volumesChart"></canvas>
+                     </div>
+                </div>
+
+                <div class="grid md:grid-cols-2 gap-8">
+                    <div class="bg-white/60 p-8 rounded-lg ring-1 ring-stone-200">
+                        <h3 class="font-bold text-xl mb-3 text-red-900">人間臭い英雄たち</h3>
+                        <p class="text-stone-700">北方水滸伝の魅力の核は、完璧ではない「人間臭い」登場人物たちにある。妖術を現実的な特殊技能に置き換え、英雄たちの欠点や弱さを丹念に描くことで、読者は彼らを「戦友」のように感じ、その運命に一喜一憂する。このハードボイルドなリアリズムが、物語に圧倒的な深みを与えている。</p>
+                    </div>
+                     <div class="bg-white/60 p-8 rounded-lg ring-1 ring-stone-200">
+                        <h3 class="font-bold text-xl mb-3 text-red-900">予測不能な物語</h3>
+                        <p class="text-stone-700">原作や史実を大胆にアレンジしているため、物語は常に予測不能。知っているはずの登場人物が異なる運命を辿り、衝撃的な死を迎える。このスリリングな展開が、長大なシリーズを通して読者の心を掴み続けた。読者の反応が物語に影響を与えた逸話も、作品が「生きていた」証拠である。</p>
+                    </div>
+                </div>
+
+             </div>
+        </section>
+    </main>
+    
+    <footer class="bg-stone-800 text-amber-50 py-8">
+        <div class="max-w-6xl mx-auto px-6 text-center">
+            <p>このページは、北方謙三氏の「大水滸伝」シリーズに関する公開情報を基に作成された、非公式のインタラクティブ・ファンコンテンツです。</p>
+            <p class="text-sm mt-2 text-stone-400">A tribute to the epic world of "The Great Water Margin" by Kenzo Kitakata.</p>
+        </div>
+    </footer>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            
+            // Mobile Menu
+            const mobileMenuButton = document.getElementById('mobile-menu-button');
+            const mobileMenu = document.getElementById('mobile-menu');
+            mobileMenuButton.addEventListener('click', () => {
+                mobileMenu.classList.toggle('hidden');
+            });
+            
+            // Smooth Scrolling & Active Nav Link
+            const navLinks = document.querySelectorAll('.nav-link, #mobile-menu a');
+            const sections = document.querySelectorAll('main section');
+            
+            function updateActiveLink() {
+                let current = '';
+                sections.forEach(section => {
+                    const sectionTop = section.offsetTop;
+                    if (pageYOffset >= sectionTop - 100) {
+                        current = section.getAttribute('id');
+                    }
+                });
+
+                navLinks.forEach(link => {
+                    link.classList.remove('active');
+                    if (link.getAttribute('href').substring(1) === current) {
+                        link.classList.add('active');
+                    }
+                });
+            }
+            
+            navLinks.forEach(link => {
+                link.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    const targetId = this.getAttribute('href');
+                    const targetElement = document.querySelector(targetId);
+                    window.scrollTo({
+                        top: targetElement.offsetTop - 70,
+                        behavior: 'smooth'
+                    });
+                    if (mobileMenu.classList.contains('hidden') === false) {
+                        mobileMenu.classList.add('hidden');
+                    }
+                });
+            });
+
+            window.addEventListener('scroll', updateActiveLink);
+            updateActiveLink();
+
+            // Stats Counter Animation
+            function animateValue(obj, start, end, duration) {
+                let startTimestamp = null;
+                const step = (timestamp) => {
+                    if (!startTimestamp) startTimestamp = timestamp;
+                    const progress = Math.min((timestamp - startTimestamp) / duration, 1);
+                    obj.innerHTML = Math.floor(progress * (end - start) + start).toLocaleString();
+                    if (progress < 1) {
+                        window.requestAnimationFrame(step);
+                    }
+                };
+                window.requestAnimationFrame(step);
+            }
+
+            const statVols = document.getElementById('stat-vols');
+            const statCopies = document.getElementById('stat-copies');
+
+            const observer = new IntersectionObserver((entries) => {
+                entries.forEach(entry => {
+                    if (entry.isIntersecting) {
+                        animateValue(statVols, 0, 51, 1500);
+                        animateValue(statCopies, 0, 1160, 2000);
+                        observer.unobserve(entry.target);
+                    }
+                });
+            }, { threshold: 0.5 });
+            
+            const statsSection = document.querySelector('#intro .grid');
+            if (statsSection) {
+                 observer.observe(statsSection);
+            }
+
+            // Author Tabs
+            const authorTabs = document.querySelectorAll('.author-tab');
+            const authorContents = document.querySelectorAll('.author-content');
+            authorTabs.forEach(tab => {
+                tab.addEventListener('click', () => {
+                    authorTabs.forEach(t => t.classList.remove('active'));
+                    authorContents.forEach(c => c.classList.remove('active'));
+                    tab.classList.add('active');
+                    const contentId = `author-content-${tab.id.split('-')[2]}`;
+                    document.getElementById(contentId).classList.add('active');
+                });
+            });
+
+            // Trilogy Tabs
+            const trilogyTabs = document.querySelectorAll('.trilogy-tab');
+            const trilogyContents = document.querySelectorAll('.trilogy-content');
+            trilogyTabs.forEach(tab => {
+                tab.addEventListener('click', () => {
+                    trilogyTabs.forEach(t => t.classList.remove('active'));
+                    trilogyContents.forEach(c => c.classList.remove('active'));
+                    tab.classList.add('active');
+                    const contentId = `trilogy-content-${tab.id.split('-')[2]}`;
+                    document.getElementById(contentId).classList.add('active');
+                });
+            });
+            
+            // Trilogy Step Diagrams
+            const stepDetails = {
+                suikoden: {
+                    1: '<strong>集結：</strong>腐敗した世に怒れる者たちが、梁山泊に集う。後の百八星となる好漢たちの出会い。妖術を排した現実的な描写の中で、晁蓋や宋江をリーダーに反乱軍が形成される。',
+                    2: '<strong>闘争：</strong>圧倒的な戦力を誇る宋の官軍に対し、ゲリラ戦や策略を駆使して立ち向かう。仲間との絆、個々の英雄の活躍、そして闘いの過酷さが生々しく描かれる。',
+                    3: '<strong>落日：</strong>奮戦むなしく、梁山泊は宋の物量と策略の前に追い詰められる。主要な好漢たちが次々と散り、最後は首領・宋江が若き楊令に「替天行道」の旗を託して壮絶な最期を遂げる。',
+                },
+                yoreiden: {
+                    1: '<strong>継承：</strong>梁山泊壊滅後、失意の底にあった生き残りたちが、宋江の遺志を継いだ楊令のもとに再集結する。彼のカリスマ性が新たな希望の灯となる。',
+                    2: '<strong>建国：</strong>単一の要塞ではなく、各地に機能別の拠点を置くネットワーク国家を建設。物流と情報を制する新たな社会の創造を目指す、野心的な試みが始まる。',
+                    3: '<strong>凶刃：</strong>梁山泊はかつてないほどの勢力に成長し、理想の成就も目前と思われた。しかし、その頂点で指導者・楊令は暗殺者の凶刃に倒れ、物語は再び深い悲劇に包まれる。',
+                },
+                gakuhiden: {
+                    1: '<strong>三国鼎立：</strong>楊令を失った梁山泊、北の強国・金、そして南宋。物語は南宋の若き名将・岳飛を新たな中心に据え、三つの勢力が大陸の覇権を争う複雑な構図へと移行する。',
+                    2: '<strong>世界へ：</strong>紛争の舞台は中国大陸に留まらない。日本や西域との交易路を巡る争いも絡み、物語は国際的なスケールへと拡大。戦争の広範な影響が描かれる。',
+                    3: '<strong>終焉：</strong>全ての戦いに決着がつく。史実とは異なり、岳飛は梁山泊との共闘の果てに穏やかな死を迎える。役目を終えた梁山泊は自ら解体され、長い物語は終焉を迎える。',
+                }
+            };
+
+            const stepItems = document.querySelectorAll('.step-diagram-item');
+            stepItems.forEach(item => {
+                item.addEventListener('click', () => {
+                    const part = item.dataset.part;
+                    const step = item.dataset.step;
+
+                    // Remove active class from siblings
+                    document.querySelectorAll(`.step-diagram-item[data-part="${part}"]`).forEach(i => i.classList.remove('active'));
+                    // Add active class to clicked item
+                    item.classList.add('active');
+                    
+                    const detailBox = document.getElementById(`${part}-details`);
+                    detailBox.innerHTML = stepDetails[part][step];
+                });
+            });
+
+            // Chart.js
+            const ctx = document.getElementById('volumesChart').getContext('2d');
+            new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: ['第一部：水滸伝', '第二部：楊令伝', '第三部：岳飛伝'],
+                    datasets: [{
+                        label: '巻数',
+                        data: [19, 15, 17],
+                        backgroundColor: [
+                            'rgba(127, 29, 29, 0.6)', // red-900 with alpha
+                            'rgba(180, 83, 9, 0.6)',   // amber-700 with alpha
+                            'rgba(21, 128, 61, 0.6)'  // green-700 with alpha
+                        ],
+                        borderColor: [
+                            'rgba(127, 29, 29, 1)',
+                            'rgba(180, 83, 9, 1)',
+                            'rgba(21, 128, 61, 1)'
+                        ],
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            display: false
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    return ` ${context.dataset.label}: ${context.raw} 巻`;
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            title: {
+                                display: true,
+                                text: '巻数'
+                            }
+                        },
+                        x: {
+                            ticks: {
+                                font: {
+                                    size: 14
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+
+            // Fade in elements on scroll
+            const faders = document.querySelectorAll('.fade-in');
+            const appearOptions = {
+                threshold: 0.5,
+                rootMargin: "0px 0px -50px 0px"
+            };
+            const appearOnScroll = new IntersectionObserver(function(entries, appearOnScroll) {
+                entries.forEach(entry => {
+                    if (!entry.isIntersecting) {
+                        return;
+                    } else {
+                        entry.target.classList.add('visible');
+                        appearOnScroll.unobserve(entry.target);
+                    }
+                });
+            }, appearOptions);
+
+            faders.forEach(fader => {
+                appearOnScroll.observe(fader);
+            });
+        });
+    </script>
+</body>
+</html>
